@@ -14,7 +14,7 @@ Kids engage more deeply when they see themselves in the story. Customizing physi
 1.  **Home Screen:**
     *   User sees a vertical list of available stories.
     *   Each item shows a thumbnail and title.
-    *   *Constraint:* Stories are hardcoded in the app for v1 (no backend).
+    *   *Constraint:* Stories are hardcoded in the app for v1 (no backend), but data structure should be designed to support a future backend API migration easily (v2).
 
 2.  **Story Selection:**
     *   User taps a story.
@@ -25,12 +25,12 @@ Kids engage more deeply when they see themselves in the story. Customizing physi
         *   *Logic:* If input is empty, use the default story character name.
 
 3.  **Reading Experience:**
-    *   **Layout:** Split screen. Top 50% = Illustration. Bottom 50% = Text (3-4 sentences).
+    *   **Layout:** Split screen. Top 60% = Illustration. Bottom 40% = Text (3-4 sentences).
     *   **Name Replacement:** Every instance of the [Default Name] in the text is replaced by the [User Input Name].
     *   **Audio:** Text-to-Speech (TTS) engine reads the text aloud immediately upon loading the page.
     *   **Navigation:**
-        *   Big "Next" arrow to advance.
-        *   "Back" arrow to return to previous page.
+        *   **Auto-Advance:** Automatically navigates to the next page when TTS audio finishes (with a 2-3 second delay).
+        *   **Manual Override:** Big "Next" and "Back" arrows are still available if the user wants to skip or re-read.
         *   "Home" icon (top corner) to exit.
 
 4.  **End of Story:**
@@ -52,11 +52,13 @@ Stories must be stored locally in a JSON format containing:
 *   The app must perform a case-insensitive find-and-replace on the story text before rendering.
 *   The replaced name must match the casing of the surrounding sentence (Capitalized at start, etc. - for v1 simple string replacement is acceptable if we assume names are always capitalized).
 
-### FR3: Audio (TTS)
+### FR3: Audio & Auto-Advance
 *   Use native platform TTS (Expo Speech or React Native TTS).
 *   Must read the *modified* text (with the child's name).
 *   Audio starts automatically when page loads.
-*   Stop audio if user navigates away/forward.
+*   Stop audio if user manually navigates away/forward.
+*   **Auto-Advance Logic:** Upon TTS completion, wait 2-3 seconds, then automatically advance to the next page.
+
 
 ## 5. Non-Functional Requirements
 *   **Performance:** Instant page turns.
