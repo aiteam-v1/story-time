@@ -28,35 +28,20 @@ export default function StoryReaderScreen() {
 
   const story = STORIES.find((s) => s.id === storyId);
   const [pageIndex, setPageIndex] = useState(0);
+
   const autoAdvanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tracks which page index started the current speech session.
+  // If pageIndex changes before onDone fires, the callback is stale and discarded.
+  const speechPageRef = useRef<number>(-1);
 
   const clearTimerAndSpeech = useCallback(() => {
     Speech.stop();
+    speechPageRef.current = -1;
     if (autoAdvanceTimer.current) {
       clearTimeout(autoAdvanceTimer.current);
       autoAdvanceTimer.current = null;
     }
   }, []);
-
-  const speakPage = useCallback(
-    (text: string, isLastPage: boolean, onAdvance: () => void) => {
-      clearTimerAndSpeech();
-      Speech.speak(text, {
-        onDone: () => {
-          if (!isLastPage) {
-            autoAdvanceTimer.current = setTimeout(onAdvance, AUTO_ADVANCE_DELAY_MS);
-          }
-        },
-        onStopped: () => {
-          if (autoAdvanceTimer.current) {
-            clearTimeout(autoAdvanceTimer.current);
-            autoAdvanceTimer.current = null;
-          }
-        },
-      });
-    },
-    [clearTimerAndSpeech]
-  );
 
   useEffect(() => {
     if (!story) return;
@@ -69,16 +54,43 @@ export default function StoryReaderScreen() {
     );
     const isLastPage = pageIndex === story.pages.length - 1;
 
-    speakPage(injectedText, isLastPage, () => {
-      setPageIndex((prev) => prev + 1);
+    // Record which page owns this speech session
+    speechPageRef.current = pageIndex;
+    const ownedPage = pageIndex;
+
+    Speech.stop();
+    if (autoAdvanceTimer.current) {
+      clearTimeout(autoAdvanceTimer.current);
+      autoAdvanceTimer.current = null;
+    }
+
+    Speech.speak(injectedText, {
+      onDone: () => {
+        // Guard: discard if user already navigated away from this page
+        if (speechPageRef.current !== ownedPage) return;
+        if (!isLastPage) {
+          autoAdvanceTimer.current = setTimeout(() => {
+            // Double-check guard inside the timer too
+            if (speechPageRef.current === ownedPage) {
+              setPageIndex((prev) => prev + 1);
+            }
+          }, AUTO_ADVANCE_DELAY_MS);
+        }
+      },
+      onStopped: () => {
+        if (autoAdvanceTimer.current) {
+          clearTimeout(autoAdvanceTimer.current);
+          autoAdvanceTimer.current = null;
+        }
+      },
     });
 
     return () => {
       clearTimerAndSpeech();
     };
-  }, [pageIndex, story, heroName, speakPage, clearTimerAndSpeech]);
+  }, [pageIndex, story, heroName, clearTimerAndSpeech]);
 
-  // Stop everything on unmount
+  // Stop everything on screen unmount
   useEffect(() => {
     return () => {
       clearTimerAndSpeech();
@@ -158,10 +170,7 @@ export default function StoryReaderScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFF9F0',
-  },
+  container: { flex: 1, backgroundColor: '#FFF9F0' },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
