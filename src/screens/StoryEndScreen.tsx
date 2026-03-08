@@ -27,7 +27,7 @@ export default function StoryEndScreen() {
   };
 
   const handleBackToStories = () => {
-    navigation.navigate('Home');
+    navigation.popToTop();
   };
 
   return (
