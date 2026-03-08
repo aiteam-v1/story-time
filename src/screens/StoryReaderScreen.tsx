@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   Alert,
   SafeAreaView,
 } from 'react-native';
+import * as Speech from 'expo-speech';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/AppNavigator';
@@ -18,6 +19,8 @@ import NavigationArrows from '../components/NavigationArrows';
 type StoryReaderNav = NativeStackNavigationProp<RootStackParamList, 'StoryReader'>;
 type StoryReaderRoute = RouteProp<RootStackParamList, 'StoryReader'>;
 
+const AUTO_ADVANCE_DELAY_MS = 2500;
+
 export default function StoryReaderScreen() {
   const navigation = useNavigation<StoryReaderNav>();
   const { params } = useRoute<StoryReaderRoute>();
@@ -25,6 +28,62 @@ export default function StoryReaderScreen() {
 
   const story = STORIES.find((s) => s.id === storyId);
   const [pageIndex, setPageIndex] = useState(0);
+  const autoAdvanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearTimerAndSpeech = useCallback(() => {
+    Speech.stop();
+    if (autoAdvanceTimer.current) {
+      clearTimeout(autoAdvanceTimer.current);
+      autoAdvanceTimer.current = null;
+    }
+  }, []);
+
+  const speakPage = useCallback(
+    (text: string, isLastPage: boolean, onAdvance: () => void) => {
+      clearTimerAndSpeech();
+      Speech.speak(text, {
+        onDone: () => {
+          if (!isLastPage) {
+            autoAdvanceTimer.current = setTimeout(onAdvance, AUTO_ADVANCE_DELAY_MS);
+          }
+        },
+        onStopped: () => {
+          if (autoAdvanceTimer.current) {
+            clearTimeout(autoAdvanceTimer.current);
+            autoAdvanceTimer.current = null;
+          }
+        },
+      });
+    },
+    [clearTimerAndSpeech]
+  );
+
+  useEffect(() => {
+    if (!story) return;
+
+    const currentPage = story.pages[pageIndex];
+    const injectedText = injectName(
+      currentPage.text,
+      story.defaultCharacterName,
+      heroName
+    );
+    const isLastPage = pageIndex === story.pages.length - 1;
+
+    speakPage(injectedText, isLastPage, () => {
+      setPageIndex((prev) => prev + 1);
+    });
+
+    return () => {
+      clearTimerAndSpeech();
+    };
+  }, [pageIndex, story, heroName, speakPage, clearTimerAndSpeech]);
+
+  // Stop everything on unmount
+  useEffect(() => {
+    return () => {
+      clearTimerAndSpeech();
+    };
+  }, [clearTimerAndSpeech]);
 
   if (!story) {
     return (
@@ -42,6 +101,7 @@ export default function StoryReaderScreen() {
   );
 
   const handleNext = () => {
+    clearTimerAndSpeech();
     if (pageIndex < story.pages.length - 1) {
       setPageIndex(pageIndex + 1);
     } else {
@@ -50,6 +110,7 @@ export default function StoryReaderScreen() {
   };
 
   const handlePrev = () => {
+    clearTimerAndSpeech();
     if (pageIndex > 0) {
       setPageIndex(pageIndex - 1);
     }
@@ -64,7 +125,10 @@ export default function StoryReaderScreen() {
         {
           text: 'Go home',
           style: 'destructive',
-          onPress: () => navigation.navigate('Home'),
+          onPress: () => {
+            clearTimerAndSpeech();
+            navigation.navigate('Home');
+          },
         },
       ]
     );
@@ -106,24 +170,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     backgroundColor: '#FFF9F0',
   },
-  homeButton: {
-    padding: 8,
-  },
-  homeIcon: {
-    fontSize: 28,
-  },
-  pageCounter: {
-    fontSize: 16,
-    color: '#999',
-    fontWeight: '600',
-  },
-  error: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  errorText: {
-    fontSize: 18,
-    color: '#999',
-  },
+  homeButton: { padding: 8 },
+  homeIcon: { fontSize: 28 },
+  pageCounter: { fontSize: 16, color: '#999', fontWeight: '600' },
+  error: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  errorText: { fontSize: 18, color: '#999' },
 });
