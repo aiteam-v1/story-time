@@ -50,3 +50,9 @@ describe('injectName', () => {
     );
   });
 });
+
+  it('handles defaultName with regex metacharacters (e.g. "Mr. Fox")', () => {
+    expect(
+      injectName('Mr. Fox jumped over the fence. mr. fox was quick.', 'Mr. Fox', 'Emma')
+    ).toBe('Emma jumped over the fence. emma was quick.');
+  });
